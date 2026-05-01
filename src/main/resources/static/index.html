@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AuCLI</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col text-slate-200">
+<!-- Header -->
+<header class="border-b border-slate-700/50 bg-slate-900/50 backdrop-blur-sm">
+    <div class="max-w-4xl mx-auto px-6 py-4">
+        <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">AuCLI</h1>
+        <p class="text-sm text-slate-400 mt-1">MCP-based CLI Automation Tool</p>
+    </div>
+</header>
+
+<!-- Main -->
+<main class="flex-1 flex flex-col items-center justify-center px-6 py-12">
+    <div class="w-full max-w-4xl">
+        <div id="welcome" class="text-center mb-12">
+            <h2 class="text-5xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 bg-clip-text text-transparent mb-4">
+                Welcome to AuCLI
+            </h2>
+            <p class="text-xl text-slate-400 italic">Automate anything, command everything</p>
+            <p class="text-sm text-slate-500 mt-4">
+                Your intelligent CLI automation assistant powered by MCP
+            </p>
+        </div>
+
+        <div id="messages" class="mb-8 space-y-4 max-h-[60vh] overflow-y-auto"></div>
+
+        <!-- Input box -->
+        <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 shadow-2xl">
+            <div class="flex items-end gap-2 p-4">
+          <textarea
+                  id="userInput"
+                  placeholder="Enter your CLI command or question..."
+                  class="flex-1 bg-transparent text-slate-200 placeholder-slate-500 resize-none outline-none min-h-[24px] max-h-[200px] py-2 disabled:opacity-50"
+          ></textarea>
+                <button
+                        id="sendBtn"
+                        class="flex-shrink-0 p-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all"
+                        title="Send message"
+                >
+                    <i data-lucide="send" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="px-4 pb-3 text-xs text-slate-500">
+                Press Enter to send, Shift+Enter for new line
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Footer -->
+<footer class="border-t border-slate-700/50 bg-slate-900/50 backdrop-blur-sm">
+    <div class="max-w-4xl mx-auto px-6 py-4 text-center text-sm text-slate-500">
+        AuCLI © 2025
+    </div>
+</footer>
+
+<script>
+    lucide.createIcons();
+
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const messagesDiv = document.getElementById('messages');
+    const welcome = document.getElementById('welcome');
+
+    let isProcessing = false;
+
+    async function sendMessage() {
+      const text = userInput.value.trim();
+      if (!text || isProcessing) return;
+
+      welcome.style.display = 'none';
+      addUserMessage(text);
+      userInput.value = '';
+      isProcessing = true;
+      addProcessing();
+
+      try {
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: text })
+        });
+
+        const data = await res.json();
+        removeProcessing();
+        
+        if (data.status === 'requires_confirmation') {
+            addConfirmationMessage(data);
+        } else {
+            addAssistantMessage(data.message || JSON.stringify(data), data.status);
+        }
+      } catch (err) {
+        removeProcessing();
+        addAssistantMessage('❌ Error: ' + err.message, 'error');
+      }
+
+      isProcessing = false;
+    }
+
+    async function executePlan(plan) {
+      isProcessing = true;
+      addProcessing();
+      try {
+        const res = await fetch('/api/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(plan)
+        });
+        const data = await res.json();
+        removeProcessing();
+        addAssistantMessage(data.message || JSON.stringify(data), data.status);
+      } catch (err) {
+        removeProcessing();
+        addAssistantMessage('❌ Error: ' + err.message, 'error');
+      }
+      isProcessing = false;
+    }
+
+    // Message helpers
+    function addUserMessage(text) {
+      const msg = document.createElement('div');
+      msg.className = 'flex justify-end';
+      msg.innerHTML = `
+        <div class="bg-blue-600/20 backdrop-blur-md rounded-2xl px-5 py-3 border border-blue-500/30 max-w-[80%] shadow-lg shadow-blue-900/20">
+          <p class="text-slate-100 whitespace-pre-wrap">${text}</p>
+          <span class="text-xs text-slate-400 mt-1 block">${new Date().toLocaleTimeString()}</span>
+        </div>`;
+      messagesDiv.appendChild(msg);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function addAssistantMessage(text, status = 'success') {
+      const msg = document.createElement('div');
+      msg.className = 'flex justify-start';
+      msg.innerHTML = `
+        <div class="bg-slate-800/80 backdrop-blur-md rounded-2xl px-5 py-3 border border-slate-700/50 max-w-[80%] shadow-xl">
+          <div class="flex items-center gap-2 mb-2">
+            <i data-lucide="terminal" class="w-4 h-4 text-cyan-400"></i>
+            <span class="text-xs font-semibold text-cyan-400">AuCLI Output</span>
+            ${
+              status === 'success'
+                ? '<i data-lucide="check-circle" class="w-4 h-4 text-green-400"></i>'
+                : '<i data-lucide="x-circle" class="w-4 h-4 text-red-400"></i>'
+            }
+          </div>
+          <pre class="text-slate-200 whitespace-pre-wrap font-mono text-sm overflow-x-auto">${text}</pre>
+          <span class="text-xs text-slate-500 mt-2 block">${new Date().toLocaleTimeString()}</span>
+        </div>`;
+      messagesDiv.appendChild(msg);
+      lucide.createIcons();
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function addConfirmationMessage(data) {
+      const msg = document.createElement('div');
+      msg.className = 'flex justify-start w-full';
+      
+      const uniqueId = 'conf_' + Date.now();
+      
+      msg.innerHTML = `
+        <div class="bg-red-900/30 backdrop-blur-md rounded-2xl px-5 py-4 border border-red-500/50 max-w-[90%] shadow-xl shadow-red-900/20">
+          <div class="flex items-center gap-2 mb-3">
+            <i data-lucide="alert-triangle" class="w-5 h-5 text-red-400"></i>
+            <span class="text-sm font-bold text-red-400">Confirmation Required</span>
+          </div>
+          <div class="text-slate-200 whitespace-pre-wrap font-mono text-sm mb-4 bg-slate-900/60 p-3 rounded border border-slate-700/50 overflow-x-auto">${data.message}</div>
+          <div class="flex gap-3 mt-4" id="${uniqueId}_buttons">
+            <button id="${uniqueId}_proceed" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-lg transition-colors shadow-lg flex items-center gap-2">
+                <i data-lucide="check" class="w-4 h-4"></i> Proceed
+            </button>
+            <button id="${uniqueId}_abort" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg transition-colors shadow-lg flex items-center gap-2">
+                <i data-lucide="x" class="w-4 h-4"></i> Abort
+            </button>
+          </div>
+          <span class="text-xs text-slate-500 mt-3 block">${new Date().toLocaleTimeString()}</span>
+        </div>`;
+      messagesDiv.appendChild(msg);
+      lucide.createIcons();
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      
+      document.getElementById(`${uniqueId}_proceed`).addEventListener('click', () => {
+          document.getElementById(`${uniqueId}_buttons`).style.display = 'none';
+          executePlan(data.plan);
+      });
+      
+      document.getElementById(`${uniqueId}_abort`).addEventListener('click', () => {
+          document.getElementById(`${uniqueId}_buttons`).style.display = 'none';
+          addAssistantMessage('❌ Operation aborted by user.', 'error');
+      });
+    }
+
+    function addProcessing() {
+      const proc = document.createElement('div');
+      proc.id = 'processing';
+      proc.className = 'flex justify-start';
+      proc.innerHTML = `
+        <div class="bg-slate-800/50 backdrop-blur-sm rounded-2xl px-5 py-3 border border-slate-700/50">
+          <div class="flex items-center gap-2">
+            <i data-lucide="loader" class="w-4 h-4 text-cyan-400 animate-spin"></i>
+            <span class="text-sm text-slate-400">Processing command...</span>
+          </div>
+        </div>`;
+      messagesDiv.appendChild(proc);
+      lucide.createIcons();
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function removeProcessing() {
+      const proc = document.getElementById('processing');
+      if (proc) proc.remove();
+    }
+
+    // Event listeners
+    sendBtn.addEventListener('click', sendMessage);
+    userInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+</script>
+</body>
+</html>
