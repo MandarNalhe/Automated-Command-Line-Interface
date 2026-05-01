@@ -13,6 +13,7 @@ import com.google.genai.types.Part;
 import com.mcp.host.mcp_host.Services.SafetyCheck;
 import com.mcp.host.mcp_host.model.ExecutionPlan;
 import com.mcp.host.mcp_host.model.ToolStep;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -36,8 +37,8 @@ public class CMD_EXEC {
     private final PtySession ptySession;
 
     private String response = "";
-
-    private String apiKey = "AIzaSyAndPd-2L8Xv8AFdKjWQ4HPpjNATYQe0PY";
+   @Value("${apiKey1}")
+    private String apiKey;
 
 
     // Initial CWD from the orchestrator
@@ -78,6 +79,23 @@ public class CMD_EXEC {
                 };
                 System.out.println("  OUTPUT: " + output);
                 response += "\n"+output;
+                if(response.toLowerCase().contains("error")){
+                    String error = this.executionContext.get(LAST_SEARCH_RESULT_KEY);
+                    Client client = Client.builder()
+                            .apiKey(apiKey)
+                            .build();
+
+                    GenerateContentConfig config = GenerateContentConfig.builder()
+                            .responseMimeType("application/json")
+                            .build();
+                    GenerateContentResponse errorOutput =
+                            client.models.generateContent(
+                                    "gemini-2.5-flash",
+                                    error,
+                                    config);
+                    System.out.println(errorOutput.text());
+                    response += "\n"+errorOutput.text();
+                }
             } catch (Exception e) {
                 System.err.println("  ERROR: Execution failed for step " + step.getTool() + ". Reason: " + e.getMessage());
                 // In a real app, you would stop or ask the user for guidance here.
